@@ -3,6 +3,11 @@ import { Resource } from 'npm:@opentelemetry/resources';
 import { SemanticResourceAttributes } from 'npm:@opentelemetry/semantic-conventions';
 import { BasicTracerProvider, ConsoleSpanExporter, SimpleSpanProcessor } from 'npm:@opentelemetry/sdk-trace-base';
 // const { JaegerExporter } = require('@opentelemetry/exporter-jaeger');
+import { FetchInstrumentation } from 'npm:@opentelemetry/instrumentation-fetch';
+import { registerInstrumentations } from 'npm:@opentelemetry/instrumentation';
+
+// Monkeypatching to get past FetchInstrumentation's dependence on sdk-trace-web, which depends on some browser-only constructs
+globalThis.location = {}; //For this line - https://github.com/open-telemetry/opentelemetry-js/blob/main/packages/opentelemetry-sdk-trace-web/src/utils.ts#L310
 
 const provider = new BasicTracerProvider({
   resource: new Resource({
@@ -27,6 +32,11 @@ provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
  * methods will receive no-op implementations.
  */
 provider.register();
+
+registerInstrumentations({
+  instrumentations: [new FetchInstrumentation()],
+});
+
 const tracer = opentelemetry.trace.getTracer('example-basic-tracer-node');
 
 // Create a span. A span must be closed.
