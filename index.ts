@@ -77,8 +77,10 @@ const tracer = opentelemetry.trace.getTracer('example-basic-tracer-node');
 
 const port = 8080;
 
-const handler = (request: Request): Response => {
+const handler = async (request: Request): Promise<Response> => {
   const parentSpan = tracer.startSpan('handler');
+
+  await fetch("http://www.example.com");
 
   const body = `Your user-agent is:\n\n${
     request.headers.get("user-agent") ?? "Unknown"
