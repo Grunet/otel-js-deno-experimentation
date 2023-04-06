@@ -89,7 +89,7 @@ Deno.serveHttp = function(...args) {
         const nextRequestFunction = target[prop];
 
         const modifiedNextRequestFunction = function() {
-          const nextRequestPromise = nextRequestFunction();
+          const nextRequestPromise = nextRequestFunction.call(target);
 
           nextRequestPromise.then((requestEvent) => {
               if (!requestEvent) {
