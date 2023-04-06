@@ -75,10 +75,56 @@ const tracer = opentelemetry.trace.getTracer('example-basic-tracer-node');
 //   span.end();
 // }
 
+// Autoinstrument core http server methods via monkeypatching
+
+const oldDenoServeHttp = Deno.serveHttp;
+Deno.serveHttp = function(...args) {
+  const httpConn = oldDenoServeHttp(...args);
+
+  const proxiedHttpConn = new Proxy(httpConn, {
+    get(target, prop, receiver) {
+      if (prop === "nextRequest") {
+        const topLevelSpan = tracer.startSpan("nextRequest");
+
+        const nextRequestFunction = target[prop];
+
+        const modifiedNextRequestFunction = function() {
+          const nextRequestPromise = nextRequestFunction();
+
+          nextRequestPromise.then((requestEvent) => {
+              if (!requestEvent) {
+                console.log("requestEvent was falsy");
+                return;
+              }
+
+              const oldRespondWith = requestEvent.respondWith;
+              requestEvent.respondWith = function(response) {
+
+                topLevelSpan.end();
+
+                return oldRespondWith.call(requestEvent, response);
+              }
+          })
+
+          return nextRequestPromise;
+        }
+
+        return modifiedNextRequestFunction.call(target);
+        
+      }
+
+      return target[prop];
+    },
+  })
+
+  return proxiedHttpConn;
+}
+
+
 const port = 8080;
 
 const handler = async (request: Request): Promise<Response> => {
-  const parentSpan = tracer.startSpan('handler');
+  // const parentSpan = tracer.startSpan('handler');
 
   await fetch("http://www.example.com");
 
@@ -88,7 +134,7 @@ const handler = async (request: Request): Promise<Response> => {
 
   const res = new Response(body, { status: 200 });
 
-  parentSpan.end();
+  // parentSpan.end();
 
   return res;
 };
