@@ -84,7 +84,8 @@ Deno.serveHttp = function(...args) {
   const proxiedHttpConn = new Proxy(httpConn, {
     get(target, prop, receiver) {
       if (prop === "nextRequest") {
-        const topLevelSpan = tracer.startSpan("nextRequest");
+
+        const topLevelSpan = tracer.startSpan("nextRequest", undefined, opentelemetry.context.active());
 
         const nextRequestFunction = target[prop];
 
@@ -96,6 +97,9 @@ Deno.serveHttp = function(...args) {
                 console.log("requestEvent was falsy");
                 return;
               }
+
+              //This should probably be done with AsyncLocalStorage instead, but this is quick and dirty for now
+              requestEvent.request.__topLevelSpan = topLevelSpan;
 
               const oldRespondWith = requestEvent.respondWith;
               requestEvent.respondWith = function(response) {
@@ -124,7 +128,13 @@ Deno.serveHttp = function(...args) {
 const port = 8080;
 
 const handler = async (request: Request): Promise<Response> => {
-  // const parentSpan = tracer.startSpan('handler');
+  // console.log(opentelemetry.trace.getActiveSpan());
+
+  const ctx = opentelemetry.trace.setSpan(
+    opentelemetry.context.active(),
+    request.__topLevelSpan,
+  );
+  const parentSpan = tracer.startSpan('handler', undefined, ctx);
 
   await fetch("http://www.example.com");
 
@@ -134,7 +144,7 @@ const handler = async (request: Request): Promise<Response> => {
 
   const res = new Response(body, { status: 200 });
 
-  // parentSpan.end();
+  parentSpan.end();
 
   return res;
 };
