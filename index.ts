@@ -1,45 +1,76 @@
-import opentelemetry from 'npm:@opentelemetry/api';
-import { Resource } from 'npm:@opentelemetry/resources';
-import { SemanticResourceAttributes } from 'npm:@opentelemetry/semantic-conventions';
-import { BasicTracerProvider, ConsoleSpanExporter, SimpleSpanProcessor } from 'npm:@opentelemetry/sdk-trace-base';
-// const { JaegerExporter } = require('@opentelemetry/exporter-jaeger');
+import { BatchSpanProcessor, ConsoleSpanExporter } from "npm:@opentelemetry/sdk-trace-base";
+import { Resource } from "npm:@opentelemetry/resources";
+import { SemanticResourceAttributes } from "npm:@opentelemetry/semantic-conventions";
+import { NodeTracerProvider } from "npm:@opentelemetry/sdk-trace-node";
+import { registerInstrumentations } from "npm:@opentelemetry/instrumentation";
+import opentelemetry from "npm:@opentelemetry/api";
+
 import { FetchInstrumentation } from 'npm:@opentelemetry/instrumentation-fetch';
-import { registerInstrumentations } from 'npm:@opentelemetry/instrumentation';
 
 import { serve } from "https://deno.land/std@0.180.0/http/server.ts";
 
-// Monkeypatching to get past FetchInstrumentation's dependence on sdk-trace-web, which depends on some browser-only constructs
-globalThis.location = {}; //For this line - https://github.com/open-telemetry/opentelemetry-js/blob/main/packages/opentelemetry-sdk-trace-web/src/utils.ts#L310
 
-const provider = new BasicTracerProvider({
-  resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: 'basic-service',
-  }),
-});
-
-// Configure span processor to send spans to the exporter
-// const exporter = new JaegerExporter({
-//   endpoint: 'http://localhost:14268/api/traces',
-// });
-// provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
-
-/**
- * Initialize the OpenTelemetry APIs to use the BasicTracerProvider bindings.
- *
- * This registers the tracer provider with the OpenTelemetry API as the global
- * tracer provider. This means when you call API methods like
- * `opentelemetry.trace.getTracer`, they will use this tracer provider. If you
- * do not register a global tracer provider, instrumentation which calls these
- * methods will receive no-op implementations.
- */
-provider.register();
-
+// Optionally register instrumentation libraries
 registerInstrumentations({
   instrumentations: [new FetchInstrumentation()],
 });
 
-const tracer = opentelemetry.trace.getTracer('example-basic-tracer-node');
+const resource =
+  Resource.default().merge(
+    new Resource({
+      [SemanticResourceAttributes.SERVICE_NAME]: "service-name-here",
+      [SemanticResourceAttributes.SERVICE_VERSION]: "0.1.0",
+    })
+  );
+
+const provider = new NodeTracerProvider({
+    resource: resource,
+});
+const exporter = new ConsoleSpanExporter();
+const processor = new BatchSpanProcessor(exporter);
+provider.addSpanProcessor(processor);
+
+provider.register();
+
+const tracer = opentelemetry.trace.getTracer(
+  'my-service-tracer'
+);
+
+
+// Monkeypatching to get past FetchInstrumentation's dependence on sdk-trace-web, which depends on some browser-only constructs
+globalThis.location = {}; //For this line - https://github.com/open-telemetry/opentelemetry-js/blob/main/packages/opentelemetry-sdk-trace-web/src/utils.ts#L310
+
+
+
+// const provider = new BasicTracerProvider({
+//   resource: new Resource({
+//     [SemanticResourceAttributes.SERVICE_NAME]: 'basic-service',
+//   }),
+// });
+
+// // Configure span processor to send spans to the exporter
+// // const exporter = new JaegerExporter({
+// //   endpoint: 'http://localhost:14268/api/traces',
+// // });
+// // provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+// provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
+
+// /**
+//  * Initialize the OpenTelemetry APIs to use the BasicTracerProvider bindings.
+//  *
+//  * This registers the tracer provider with the OpenTelemetry API as the global
+//  * tracer provider. This means when you call API methods like
+//  * `opentelemetry.trace.getTracer`, they will use this tracer provider. If you
+//  * do not register a global tracer provider, instrumentation which calls these
+//  * methods will receive no-op implementations.
+//  */
+// provider.register();
+
+// registerInstrumentations({
+//   instrumentations: [new FetchInstrumentation()],
+// });
+
+// const tracer = opentelemetry.trace.getTracer('example-basic-tracer-node');
 
 // // Create a span. A span must be closed.
 // const parentSpan = tracer.startSpan('main');
@@ -77,52 +108,52 @@ const tracer = opentelemetry.trace.getTracer('example-basic-tracer-node');
 
 // Autoinstrument core http server methods via monkeypatching
 
-const oldDenoServeHttp = Deno.serveHttp;
-Deno.serveHttp = function(...args) {
-  const httpConn = oldDenoServeHttp(...args);
+// const oldDenoServeHttp = Deno.serveHttp;
+// Deno.serveHttp = function(...args) {
+//   const httpConn = oldDenoServeHttp(...args);
 
-  const proxiedHttpConn = new Proxy(httpConn, {
-    get(target, prop, receiver) {
-      if (prop === "nextRequest") {
+//   const proxiedHttpConn = new Proxy(httpConn, {
+//     get(target, prop, receiver) {
+//       if (prop === "nextRequest") {
 
-        const topLevelSpan = tracer.startSpan("nextRequest", undefined, opentelemetry.context.active());
+//         const topLevelSpan = tracer.startSpan("nextRequest", undefined, opentelemetry.context.active());
 
-        const nextRequestFunction = target[prop];
+//         const nextRequestFunction = target[prop];
 
-        const modifiedNextRequestFunction = function() {
-          const nextRequestPromise = nextRequestFunction.call(target);
+//         const modifiedNextRequestFunction = function() {
+//           const nextRequestPromise = nextRequestFunction.call(target);
 
-          nextRequestPromise.then((requestEvent) => {
-              if (!requestEvent) {
-                console.log("requestEvent was falsy");
-                return;
-              }
+//           nextRequestPromise.then((requestEvent) => {
+//               if (!requestEvent) {
+//                 console.log("requestEvent was falsy");
+//                 return;
+//               }
 
-              //This should probably be done with AsyncLocalStorage instead, but this is quick and dirty for now
-              requestEvent.request.__topLevelSpan = topLevelSpan;
+//               //This should probably be done with AsyncLocalStorage instead, but this is quick and dirty for now
+//               requestEvent.request.__topLevelSpan = topLevelSpan;
 
-              const oldRespondWith = requestEvent.respondWith;
-              requestEvent.respondWith = function(response) {
+//               const oldRespondWith = requestEvent.respondWith;
+//               requestEvent.respondWith = function(response) {
 
-                topLevelSpan.end();
+//                 topLevelSpan.end();
 
-                return oldRespondWith.call(requestEvent, response);
-              }
-          })
+//                 return oldRespondWith.call(requestEvent, response);
+//               }
+//           })
 
-          return nextRequestPromise;
-        }
+//           return nextRequestPromise;
+//         }
 
-        return modifiedNextRequestFunction.bind(target);
+//         return modifiedNextRequestFunction.bind(target);
         
-      }
+//       }
 
-      return target[prop];
-    },
-  })
+//       return target[prop];
+//     },
+//   })
 
-  return proxiedHttpConn;
-}
+//   return proxiedHttpConn;
+// }
 
 
 const port = 8080;
@@ -130,21 +161,30 @@ const port = 8080;
 const handler = async (request: Request): Promise<Response> => {
   // console.log(opentelemetry.trace.getActiveSpan());
 
-  const ctx = opentelemetry.trace.setSpan(
-    opentelemetry.context.active(),
-    request.__topLevelSpan,
-  );
-  const parentSpan = tracer.startSpan('handler', undefined, ctx);
+  // const ctx = opentelemetry.trace.setSpan(
+  //   opentelemetry.context.active(),
+  //   request.__topLevelSpan,
+  // );
+  // const parentSpan = tracer.startSpan('handler', undefined, ctx);
 
-  await fetch("http://www.example.com");
+  let body;
 
-  const body = `Your user-agent is:\n\n${
-    request.headers.get("user-agent") ?? "Unknown"
-  }`;
+  await tracer.startActiveSpan('main', async (span) => {
+    await fetch("http://www.example.com");
+
+    body = `Your user-agent is:\n\n${
+      request.headers.get("user-agent") ?? "Unknown"
+    }`;
+  
+    // Be sure to end the span!
+    span.end();
+  });
+
+  
 
   const res = new Response(body, { status: 200 });
 
-  parentSpan.end();
+  // parentSpan.end();
 
   return res;
 };
