@@ -109,7 +109,7 @@ Deno.serveHttp = function(...args) {
           return nextRequestPromise;
         }
 
-        return modifiedNextRequestFunction.call(target);
+        return modifiedNextRequestFunction.bind(target);
         
       }
 
