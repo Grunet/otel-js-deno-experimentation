@@ -55,9 +55,7 @@ const handler = async (request: Request): Promise<Response> => {
   await fetch("http://www.example.com");
 
   const span = tracer.startSpan(`constructBody`);
-  const body = `Your user-agent is:\n\n${
-    request.headers.get("user-agent") ?? "Unknown"
-  }`;
+  const body = `Your user-agent is:\n\n${request.headers.get("user-agent") ?? "Unknown"}`;
   span.end();
 
   return new Response(body, { status: 200 });
