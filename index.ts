@@ -52,7 +52,9 @@ const port = 8080;
 
 const handler = async (request: Request): Promise<Response> => {
   // This call will be autoinstrumented
+  const otherSpan = tracer.startSpan('manualFetch');
   await fetch("http://www.example.com");
+  otherSpan.end();
 
   const span = tracer.startSpan(`constructBody`);
   const body = `Your user-agent is:\n\n${request.headers.get("user-agent") ?? "Unknown"}`;
