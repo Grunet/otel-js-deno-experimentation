@@ -64,15 +64,9 @@ function instrument(handler) {
 const port = 8080;
 
 const handler = async (request: Request): Promise<Response> => {
-  const parentSpan = opentelemetry.trace.getActiveSpan();
-  const ctx = opentelemetry.trace.setSpan(
-    opentelemetry.context.active(),
-    parentSpan
-  );
-
   await fetch("http://www.example.com");
 
-  const span = tracer.startSpan(`constructBody`, undefined, ctx);
+  const span = tracer.startSpan(`constructBody`);
 
   const body = `Your user-agent is:\n\n${
     request.headers.get("user-agent") ?? "Unknown"
