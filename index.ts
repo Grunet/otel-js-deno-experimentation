@@ -64,8 +64,10 @@ function instrument(handler) {
 const port = 8080;
 
 const handler = async (request: Request): Promise<Response> => {
+  // Will be autoinstrumented
   await fetch("http://www.example.com");
 
+  // An example of manual instrumentation
   const span = tracer.startSpan(`constructBody`);
 
   const body = `Your user-agent is:\n\n${
