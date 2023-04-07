@@ -1,19 +1,16 @@
-import { BatchSpanProcessor, ConsoleSpanExporter } from "npm:@opentelemetry/sdk-trace-base";
-import { Resource } from "npm:@opentelemetry/resources";
-import { SemanticResourceAttributes } from "npm:@opentelemetry/semantic-conventions";
-import { NodeTracerProvider } from "npm:@opentelemetry/sdk-trace-node";
 import { registerInstrumentations } from "npm:@opentelemetry/instrumentation";
-import opentelemetry from "npm:@opentelemetry/api";
-
-import { OTLPTraceExporter } from "npm:@opentelemetry/exporter-trace-otlp-proto";
-
-
 import { FetchInstrumentation } from 'npm:@opentelemetry/instrumentation-fetch';
 
+import { NodeTracerProvider } from "npm:@opentelemetry/sdk-trace-node";
+import { Resource } from "npm:@opentelemetry/resources";
+import { SemanticResourceAttributes } from "npm:@opentelemetry/semantic-conventions";
+import { BatchSpanProcessor, ConsoleSpanExporter } from "npm:@opentelemetry/sdk-trace-base";
+import { OTLPTraceExporter } from "npm:@opentelemetry/exporter-trace-otlp-proto";
+
+import opentelemetry from "npm:@opentelemetry/api";
 import { serve } from "https://deno.land/std@0.180.0/http/server.ts";
 
 
-// Optionally register instrumentation libraries
 registerInstrumentations({
   instrumentations: [new FetchInstrumentation()],
 });
