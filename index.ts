@@ -5,6 +5,9 @@ import { NodeTracerProvider } from "npm:@opentelemetry/sdk-trace-node";
 import { registerInstrumentations } from "npm:@opentelemetry/instrumentation";
 import opentelemetry from "npm:@opentelemetry/api";
 
+import { OTLPTraceExporter } from "npm:@opentelemetry/exporter-trace-otlp-proto";
+
+
 import { FetchInstrumentation } from 'npm:@opentelemetry/instrumentation-fetch';
 
 import { serve } from "https://deno.land/std@0.180.0/http/server.ts";
@@ -26,9 +29,11 @@ const resource =
 const provider = new NodeTracerProvider({
     resource: resource,
 });
-const exporter = new ConsoleSpanExporter();
-const processor = new BatchSpanProcessor(exporter);
-provider.addSpanProcessor(processor);
+const consoleExporter = new ConsoleSpanExporter();
+provider.addSpanProcessor(new BatchSpanProcessor(consoleExporter));
+
+const traceExporter = new OTLPTraceExporter();
+provider.addSpanProcessor(new BatchSpanProcessor(traceExporter));
 
 provider.register();
 
