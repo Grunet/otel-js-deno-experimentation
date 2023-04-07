@@ -25,7 +25,7 @@ globalThis.location = {};
 const resource =
   Resource.default().merge(
     new Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: "service-name-here",
+      [SemanticResourceAttributes.SERVICE_NAME]: "deno-demo-service",
       [SemanticResourceAttributes.SERVICE_VERSION]: "0.1.0",
     })
   );
@@ -45,7 +45,7 @@ provider.register();
 // Application code
 
 const tracer = opentelemetry.trace.getTracer(
-  'my-service-tracer'
+  'deno-demo-tracer'
 );
 
 const port = 8080;
