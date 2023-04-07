@@ -51,7 +51,7 @@ const tracer = opentelemetry.trace.getTracer(
 const port = 8080;
 
 const handler = async (request: Request): Promise<Response> => {
-  // Will be autoinstrumented
+  // This call will be autoinstrumented
   await fetch("http://www.example.com");
 
   const span = tracer.startSpan(`constructBody`);
