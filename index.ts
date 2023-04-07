@@ -10,10 +10,17 @@ import { OTLPTraceExporter } from "npm:@opentelemetry/exporter-trace-otlp-proto"
 import opentelemetry from "npm:@opentelemetry/api";
 import { serve } from "https://deno.land/std@0.180.0/http/server.ts";
 
+// autoinstrumentation.ts
 
 registerInstrumentations({
   instrumentations: [new FetchInstrumentation()],
 });
+
+// Monkeypatching to get past FetchInstrumentation's dependence on sdk-trace-web, which has runtime dependencies on some browser-only constructs. See https://github.com/open-telemetry/opentelemetry-js/issues/3413#issuecomment-1496834689 for more details
+// Specifically for this line - https://github.com/open-telemetry/opentelemetry-js/blob/main/packages/opentelemetry-sdk-trace-web/src/utils.ts#L310
+globalThis.location = {}; 
+
+// tracing.ts
 
 const resource =
   Resource.default().merge(
@@ -26,6 +33,7 @@ const resource =
 const provider = new NodeTracerProvider({
     resource: resource,
 });
+
 const consoleExporter = new ConsoleSpanExporter();
 provider.addSpanProcessor(new BatchSpanProcessor(consoleExporter));
 
@@ -34,15 +42,30 @@ provider.addSpanProcessor(new BatchSpanProcessor(traceExporter));
 
 provider.register();
 
+// Application code
+
 const tracer = opentelemetry.trace.getTracer(
   'my-service-tracer'
 );
 
+const port = 8080;
 
-// Monkeypatching to get past FetchInstrumentation's dependence on sdk-trace-web, which depends on some browser-only constructs
-globalThis.location = {}; //For this line - https://github.com/open-telemetry/opentelemetry-js/blob/main/packages/opentelemetry-sdk-trace-web/src/utils.ts#L310
+const handler = async (request: Request): Promise<Response> => {
+  // Will be autoinstrumented
+  await fetch("http://www.example.com");
 
-// Making the ergonomics fit better into std/http
+  const span = tracer.startSpan(`constructBody`);
+  const body = `Your user-agent is:\n\n${
+    request.headers.get("user-agent") ?? "Unknown"
+  }`;
+  span.end();
+
+  return new Response(body, { status: 200 });
+};
+
+await serve(instrument(handler), { port });
+
+// Helper code
 
 function instrument(handler) {
 
@@ -60,25 +83,3 @@ function instrument(handler) {
 
   return instrumentedHandler;
 }
-
-// App code
-
-const port = 8080;
-
-const handler = async (request: Request): Promise<Response> => {
-  // Will be autoinstrumented
-  await fetch("http://www.example.com");
-
-  // An example of manual instrumentation
-  const span = tracer.startSpan(`constructBody`);
-
-  const body = `Your user-agent is:\n\n${
-    request.headers.get("user-agent") ?? "Unknown"
-  }`;
-
-  span.end();
-
-  return new Response(body, { status: 200 });
-};
-
-await serve(instrument(handler), { port });
