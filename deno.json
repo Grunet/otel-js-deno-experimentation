@@ -1,0 +1,5 @@
+{
+    "tasks": {
+        "run": "OTEL_EXPORTER_OTLP_ENDPOINT='https://api.honeycomb.io' OTEL_EXPORTER_OTLP_HEADERS='x-honeycomb-team=your-api-key-here' OTEL_SERVICE_NAME='deno-demo' deno run -A index.ts",
+    }
+}
